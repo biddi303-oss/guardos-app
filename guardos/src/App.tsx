@@ -57,7 +57,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <WouterRouter>
           <div className="min-h-[100dvh] flex flex-col bg-background text-foreground dark">
             <div className="flex-1 flex flex-col relative">
               <Router />
