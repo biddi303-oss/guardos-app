@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, ScanLine, AlertCircle, Fingerprint } from "lucide-react";
+import { Shield, ScanLine, AlertCircle, Fingerprint, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { authGuard, getGuards } from "@/lib/db";
+import { signInGuard, guardAuthErrorMessage } from "@/lib/supabase-auth";
 import { PhoneFrame } from "@/components/PhoneFrame";
 
 export default function GuardLogin() {
@@ -14,20 +14,27 @@ export default function GuardLogin() {
   const [guardId, setGuardId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const guard = authGuard(guardId, pin);
-    if (!guard) {
-      setError("Invalid Guard ID or PIN. Check your badge.");
+    setLoading(true);
+
+    const { guard, error: authErr } = await signInGuard(guardId, pin);
+
+    setLoading(false);
+
+    if (authErr || !guard) {
+      setError(guardAuthErrorMessage(authErr ?? "invalid-credentials"));
       return;
     }
+
+    // Use the Supabase UUID as the userId so the rest of the app
+    // can match against it (GPS tracking, guard detail panel, etc.)
     setRole("guard", guard.id);
     setLocation("/guard");
   };
-
-  const quickFill = getGuards().slice(0, 4);
 
   return (
     <PhoneFrame>
@@ -49,7 +56,7 @@ export default function GuardLogin() {
               Guard Sign-In
             </CardTitle>
             <CardDescription>
-              Enter your Guard ID (e.g. GD-001) and 4-digit PIN.
+              Enter your Guard ID and PIN to access your shift.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -64,6 +71,7 @@ export default function GuardLogin() {
                   onChange={(e) => setGuardId(e.target.value.toUpperCase())}
                   className="font-mono bg-background/50 tracking-widest text-center"
                   autoComplete="off"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -73,11 +81,12 @@ export default function GuardLogin() {
                   type="password"
                   inputMode="numeric"
                   placeholder="••••"
-                  maxLength={4}
+                  maxLength={6}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                   className="font-mono tracking-[0.5em] bg-background/50 text-center text-xl"
                   autoComplete="current-password"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -87,31 +96,18 @@ export default function GuardLogin() {
                   <span>{error}</span>
                 </div>
               )}
-              <Button type="submit" className="w-full mt-2 h-12 text-base font-medium">
-                Authenticate
+              <Button
+                type="submit"
+                className="w-full mt-2 h-12 text-base font-medium"
+                disabled={loading}
+              >
+                {loading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Authenticating…</>
+                ) : (
+                  "Authenticate"
+                )}
               </Button>
             </form>
-
-            {quickFill.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-border/60">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2">
-                  Registered guards · PIN 1234
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {quickFill.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => { setGuardId(g.guardId); setPin("1234"); setError(null); }}
-                      className="text-left px-2 py-1.5 rounded border border-border bg-background/40 hover:bg-primary/10 hover:border-primary/40 transition-colors"
-                    >
-                      <div className="font-mono text-xs text-foreground">{g.guardId}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">{g.name}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

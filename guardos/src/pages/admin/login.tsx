@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, Lock, AlertCircle } from "lucide-react";
+import { Shield, Lock, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { authSupervisor, getSupervisors } from "@/lib/db";
+import { signInAdmin, authErrorMessage } from "@/lib/supabase-auth";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -13,20 +13,25 @@ export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const sup = authSupervisor(email, password);
-    if (!sup) {
-      setError("No supervisor account matches those credentials.");
+    setLoading(true);
+
+    const { profile, error: authErr } = await signInAdmin(email, password);
+
+    setLoading(false);
+
+    if (authErr || !profile) {
+      setError(authErrorMessage(authErr ?? "invalid-credentials"));
       return;
     }
-    setRole("admin", sup.id);
+
+    setRole("admin", profile.id);
     setLocation("/admin");
   };
-
-  const supervisors = getSupervisors();
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -65,6 +70,7 @@ export default function AdminLogin() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="bg-background/50 h-11"
                   autoComplete="email"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -79,6 +85,7 @@ export default function AdminLogin() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-background/50 h-11"
                   autoComplete="current-password"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -88,40 +95,14 @@ export default function AdminLogin() {
                   <span>{error}</span>
                 </div>
               )}
-              <Button type="submit" className="w-full mt-2 h-11">
-                Access Grid
+              <Button type="submit" className="w-full mt-2 h-11" disabled={loading}>
+                {loading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Authenticating…</>
+                ) : (
+                  "Access Grid"
+                )}
               </Button>
             </form>
-
-            {supervisors.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-border/60">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2">
-                  Supervisor accounts
-                </div>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {supervisors.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        setEmail(s.email);
-                        setPassword("demo");
-                        setError(null);
-                      }}
-                      className="text-left px-3 py-2 rounded border border-border bg-background/40 hover:bg-primary/10 hover:border-primary/40 transition-colors flex items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{s.name}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground truncate">{s.email}</div>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary">
-                        {s.rank.split(" ")[0].toUpperCase()}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

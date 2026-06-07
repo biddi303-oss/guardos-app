@@ -1,32 +1,37 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Building2, AlertCircle, Key } from "lucide-react";
+import { Building2, AlertCircle, Key, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { authClient, getClients } from "@/lib/db";
+import { signInClient, authErrorMessage } from "@/lib/supabase-auth";
 
 export default function ClientLogin() {
   const [, setLocation] = useLocation();
   const setRole = useAppStore((s) => s.setRole);
-  const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const client = authClient(code, password);
-    if (!client) {
-      setError("Invalid client code or password.");
+    setLoading(true);
+
+    const { profile, error: authErr } = await signInClient(email, password);
+
+    setLoading(false);
+
+    if (authErr || !profile) {
+      setError(authErrorMessage(authErr ?? "invalid-credentials"));
       return;
     }
-    setRole("client", client.id);
+
+    setRole("client", profile.id);
     setLocation("/client");
   };
-
-  const clients = getClients();
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -46,20 +51,22 @@ export default function ClientLogin() {
         <Card className="w-full bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl">
           <CardHeader>
             <CardTitle>Client Sign-In</CardTitle>
-            <CardDescription>Use the client code provided by your account manager.</CardDescription>
+            <CardDescription>Sign in with the email address registered for your account.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                  <Key className="h-3 w-3" /> Client code or email
+                  <Key className="h-3 w-3" /> Email address
                 </label>
                 <Input
-                  placeholder="CLI-HELIX"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="font-mono bg-background/50 h-11"
-                  autoComplete="username"
+                  type="email"
+                  placeholder="you@organisation.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-background/50 h-11"
+                  autoComplete="email"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -74,6 +81,7 @@ export default function ClientLogin() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-background/50 h-11"
                   autoComplete="current-password"
+                  disabled={loading}
                   required
                 />
               </div>
@@ -83,40 +91,14 @@ export default function ClientLogin() {
                   <span>{error}</span>
                 </div>
               )}
-              <Button type="submit" variant="secondary" className="w-full mt-2 h-11">
-                View Reports
+              <Button type="submit" variant="secondary" className="w-full mt-2 h-11" disabled={loading}>
+                {loading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in…</>
+                ) : (
+                  "View Reports"
+                )}
               </Button>
             </form>
-
-            {clients.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-border/60">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2">
-                  Client accounts
-                </div>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {clients.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        setCode(c.clientCode);
-                        setPassword("demo");
-                        setError(null);
-                      }}
-                      className="text-left px-3 py-2 rounded border border-border bg-background/40 hover:bg-primary/10 hover:border-primary/40 transition-colors flex items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{c.name}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground truncate">{c.contactEmail}</div>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary">
-                        {c.clientCode}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
